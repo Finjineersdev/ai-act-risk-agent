@@ -13,7 +13,7 @@ reports is backed by a quote that code has checked against text the agent actual
 fact that decides the outcome is missing, it asks instead of guessing.
 
 It is the second public portfolio repo. It **reuses** the first one (`eu-ai-act-rag`, package
-`actrag`) for retrieval and text normalisation, installed as a pinned git dependency. The two repos
+`actrag`) for retrieval and text normalisation, installed from its pinned release archive. The two repos
 visibly build on each other.
 
 ## Goals

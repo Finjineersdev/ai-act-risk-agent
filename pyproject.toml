@@ -17,7 +17,7 @@ requires = ["uv_build>=0.12.7,<0.13.0"]
 build-backend = "uv_build"
 
 [tool.uv.sources]
-actrag = { git = "https://github.com/Finjineersdev/eu-ai-act-rag", rev = "v1.1.1" }
+actrag = { url = "https://github.com/Finjineersdev/eu-ai-act-rag/archive/refs/tags/v1.1.1.tar.gz" }
 
 [dependency-groups]
 dev = [
