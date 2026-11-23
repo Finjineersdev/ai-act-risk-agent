@@ -1,0 +1,35 @@
+[project]
+name = "riskagent"
+version = "0.1.0"
+description = "Classify an AI system under the EU AI Act, with every step backed by a checked quote."
+readme = "README.md"
+authors = [{ name = "Haseeb Hanif" }]
+requires-python = ">=3.12"
+dependencies = [
+    "actrag",
+    "anthropic>=2.12.0",
+    "fastapi>=0.165.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.7,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+actrag = { git = "https://github.com/Finjineersdev/eu-ai-act-rag", rev = "v1.1.0" }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "ruff>=0.17.6",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+extend-select = ["I", "B", "UP", "SIM"]
