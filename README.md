@@ -119,7 +119,7 @@ uv run uvicorn riskagent.api:app --reload
 Tests and evals:
 
 ```bash
-uv run pytest                 # 93 tests, fake model client, no network or API key
+uv run pytest                 # 95 tests, fake model client, no network or API key
 uv run python evals/run.py    # the 30-case golden set against Claude
 ```
 
