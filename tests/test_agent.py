@@ -2,7 +2,7 @@ from types import SimpleNamespace as NS
 
 import pytest
 
-from riskagent.agent import MAX_CALLS, AgentError, assess
+from riskagent.agent import MAX_CALLS, MAX_SEARCHES_PER_TURN, AgentError, assess
 
 CV = "We sell software that screens CVs and ranks applicants for interviews."
 QUOTE = "AI systems intended to be used for the recruitment or selection of natural persons"
@@ -193,3 +193,39 @@ def test_empty_assistant_turn_not_sent_back(retriever):
     c = FakeClient(search(), msg("end_turn"), msg("tool_use", submit()))
     assert assess(CV, [], retriever, c).status == "assessed"
     assert all(m["content"] for m in c.calls[2]["messages"])
+
+
+def test_two_submits_in_one_turn_both_rejected(retriever):
+    two = msg("tool_use", submit(id_="a"), submit(id_="b"))
+    c = FakeClient(search(), two, msg("tool_use", submit()))
+    assert assess(CV, [], retriever, c).status == "assessed"
+    errs = c.calls[2]["messages"][-1]["content"]
+    assert {e["tool_use_id"] for e in errs} == {"a", "b"}
+    assert all(e["is_error"] for e in errs)
+
+
+def test_two_ask_user_in_one_turn_not_needs_info(retriever):
+    q = {"question": "q?", "why": "w"}
+    c = FakeClient(
+        msg("tool_use", use("ask_user", q, "a"), use("ask_user", q, "b")),
+        search(),
+        msg("tool_use", submit()),
+    )
+    assert assess(CV, [], retriever, c).status == "assessed"
+
+
+def test_searches_capped_per_turn(retriever):
+    five = msg("tool_use", *[use("search_act", {"query": f"q{i}"}, f"s{i}") for i in range(5)])
+    c = FakeClient(five, msg("tool_use", submit()))
+    out = assess(CV, [], retriever, c)
+    res = c.calls[1]["messages"][-1]["content"]
+    assert out.searches == MAX_SEARCHES_PER_TURN == 4
+    assert [r.get("is_error", False) for r in res] == [False] * 4 + [True]
+
+
+def test_submit_wins_over_many_searches(retriever):
+    many = msg(
+        "tool_use", *[use("search_act", {"query": "q"}, f"s{i}") for i in range(5)], submit()
+    )
+    out = assess(CV, [], retriever, FakeClient(search(), many))
+    assert out.status == "assessed" and out.searches == 1
