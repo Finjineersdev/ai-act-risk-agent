@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Act risk check</title>
+<meta name="description" content="Describe an AI system; get its EU AI Act risk tier with every step backed by a checked quote.">
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --ink: #1b1d21; --muted: #5d636e; --line: #e3e4e8;
+    --accent: #1f4fd1; --accent-ink: #ffffff; --ok: #14804a; --warn-bg: #fff6e0; --warn-ink: #7a5600;
+    --quote: #f2f4f8;
+    --t-prohibited: #b42318; --t-high_risk: #c4320a; --t-transparency: #1f4fd1; --t-minimal: #14804a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111316; --panel: #191c20; --ink: #e9eaec; --muted: #9aa1ac; --line: #2a2e35;
+      --accent: #7aa2ff; --accent-ink: #0d1020; --ok: #4fd18b; --warn-bg: #2b2410; --warn-ink: #f2cd6b;
+      --quote: #20242a;
+      --t-prohibited: #ff7a6e; --t-high_risk: #ff9b5c; --t-transparency: #7aa2ff; --t-minimal: #4fd18b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 780px; margin: 0 auto; padding: 40px 16px 64px; }
+  header h1 { font-size: 1.6rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--muted); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-top: 20px; }
+  textarea, input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; }
+  textarea { min-height: 96px; resize: vertical; }
+  input { border-bottom: 1px solid var(--line); padding: 6px 0; }
+  .row { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 8px; }
+  .hint { color: var(--muted); font-size: .85rem; }
+  button { font: inherit; border-radius: 8px; border: 1px solid var(--line); background: var(--panel);
+    color: var(--ink); padding: 8px 14px; cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  button:disabled { opacity: .6; cursor: progress; }
+  button:focus-visible, textarea:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .examples { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .examples button { font-size: .85rem; padding: 6px 10px; border-radius: 999px; color: var(--muted); }
+  .qa { color: var(--muted); font-size: .9rem; margin: 4px 0 0; }
+  .ask h2 { font-size: 1rem; margin: 0 0 8px; }
+  .banner { background: var(--warn-bg); color: var(--warn-ink); border-radius: 8px; padding: 10px 12px; margin: 0 0 10px; }
+  .tier { display: inline-block; font-weight: 700; font-size: 1.15rem; padding: 4px 12px; border-radius: 999px;
+    border: 2px solid currentColor; }
+  .summary { margin: 12px 0 0; }
+  h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 22px 0 8px; }
+  ol.steps, ul.obls { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+  ol.steps > li, ul.obls > li { border-top: 1px solid var(--line); padding-top: 10px; }
+  .step-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-weight: 600; }
+  .pill { font-size: .75rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--quote); color: var(--muted); }
+  .pill.applies { color: var(--warn-ink); background: var(--warn-bg); }
+  .finding { margin: 4px 0 6px; }
+  .ev { margin: 6px 0 0; }
+  .ev-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: .85rem; }
+  .ev-head .ref { font-weight: 600; }
+  .ev-head .ok { color: var(--ok); }
+  .ev-head a { margin-left: auto; color: var(--accent); }
+  blockquote { margin: 4px 0 0; padding: 8px 12px; background: var(--quote); border-radius: 6px; font-size: .9rem; }
+  .who { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  footer { margin-top: 40px; color: var(--muted); font-size: .85rem; }
+  @media (prefers-reduced-motion: no-preference) { .card { animation: in .2s ease-out; } }
+  @keyframes in { from { opacity: 0; transform: translateY(4px); } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>AI Act risk check</h1>
+    <p>Describe an AI system. An agent works through the EU AI Act's tests and backs every step with a quote that is checked against the official text.</p>
+  </header>
+
+  <form class="card" id="form">
+    <label for="desc" class="hint">What does your AI system do, and who uses it?</label>
+    <textarea id="desc" maxlength="4000" required placeholder="e.g. Our software screens CVs and ranks applicants for interviews. Recruiters at client companies use it."></textarea>
+    <div class="row">
+      <span class="hint" id="hint">Takes about 30–60 seconds. Ctrl/⌘ + Enter to send.</span>
+      <button class="primary" id="send" type="submit">Check</button>
+    </div>
+  </form>
+
+  <div class="examples" id="examples" aria-label="Examples">
+    <button type="button">We sell software that screens CVs and ranks job applicants for interviews.</button>
+    <button type="button">A chatbot on our website answers customer questions about orders and returns.</button>
+    <button type="button">An email spam filter that sorts incoming messages for our staff.</button>
+  </div>
+
+  <section id="out" aria-live="polite"></section>
+
+  <footer>
+    <span>Research aid based on the text of Regulation (EU) 2024/1689. Not legal advice.</span>
+    <span id="corpus"></span>
+  </footer>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const TESTS = { article_5: "Prohibited practice (Article 5)", annex_i: "Regulated product (Annex I)",
+    annex_iii: "High-risk use (Annex III)", article_6_3: "Exemption (Article 6(3))",
+    article_50: "Transparency (Article 50)", role: "Your role" };
+  const OUTCOMES = { applies: "applies", does_not_apply: "does not apply", exempted: "exempted" };
+  const TIERS = { prohibited: "Prohibited", high_risk: "High-risk", transparency: "Transparency duties", minimal: "Minimal risk" };
+  const ERRORS = { truncated: "The agent's answer was cut off, so it isn't shown. Try a shorter description.",
+    refused: "The model declined this request.", too_many_steps: "The agent took too many steps without finishing. Try a more specific description.",
+    no_decision: "The agent didn't reach a decision. Try adding detail.", upstream: "The model service is unavailable right now. Try again in a moment.",
+    no_api_key: "This server has no ANTHROPIC_API_KEY set. Add one to .env and restart.", invalid: "Please describe the system in at least a sentence (20+ characters)." };
+  let state = { description: "", answers: [] };
+
+  function el(tag, props = {}, ...kids) {
+    const n = Object.assign(document.createElement(tag), props);
+    n.append(...kids.filter((k) => k != null));
+    return n;
+  }
+
+  function evidence(list) {
+    return list.map((e) => el("div", { className: "ev" },
+      el("div", { className: "ev-head" },
+        el("span", { className: "ref", textContent: e.ref }),
+        el("span", { className: "ok", textContent: "✓ quote found in source" }),
+        el("a", { href: e.url, target: "_blank", rel: "noopener", textContent: "EUR-Lex ↗" })),
+      el("blockquote", { textContent: e.quote })));
+  }
+
+  function asked() {
+    if (!state.answers.length) return null;
+    return el("div", {}, ...state.answers.map((a) => el("p", { className: "qa", textContent: `${a.question} → ${a.answer}` })));
+  }
+
+  function renderResult(d) {
+    const card = el("article", { className: "card" });
+    if (d.status === "unverified") card.append(el("p", { className: "banner",
+      textContent: "The agent's conclusion couldn't be backed by verified quotes, so treat it as unconfirmed. " + (d.problems || []).join("; ") }));
+    const a = d.assessment;
+    card.append(el("span", { className: "tier", textContent: TIERS[a.tier] || a.tier, style: `color: var(--t-${a.tier})` }));
+    const flags = [a.role !== "unclear" ? `Role: ${a.role}` : "Role unclear: obligations shown for both",
+      a.profiles_people ? "profiles people" : null, a.gpai_based ? "built on a general-purpose AI model" : null,
+      a.transparency_duties && a.tier !== "transparency" ? "also has transparency duties" : null].filter(Boolean);
+    card.append(el("p", { className: "hint", textContent: flags.join(" · ") }));
+    card.append(el("p", { className: "summary", textContent: a.summary }));
+    card.append(asked());
+    card.append(el("h3", { textContent: "How it got there" }));
+    card.append(el("ol", { className: "steps" }, ...a.steps.map((s) => el("li", {},
+      el("div", { className: "step-head" }, el("span", { textContent: TESTS[s.test] || s.test }),
+        el("span", { className: `pill ${s.outcome}`, textContent: OUTCOMES[s.outcome] || s.outcome })),
+      el("p", { className: "finding", textContent: s.finding }), ...evidence(s.evidence)))));
+    if (a.obligations.length) {
+      card.append(el("h3", { textContent: "What you'd need to do" }));
+      card.append(el("ul", { className: "obls" }, ...a.obligations.map((o) => el("li", {},
+        el("div", { className: "who", textContent: o.applies_to === "both" ? "provider and deployer" : o.applies_to }),
+        el("p", { className: "finding", textContent: o.text }), ...evidence(o.evidence)))));
+    }
+    return card;
+  }
+
+  function renderQuestion(q) {
+    const input = el("input", { id: "answer", maxLength: 1000, required: true, placeholder: "Your answer" });
+    const form = el("form", { className: "card ask" },
+      el("h2", { textContent: "One question first" }), el("p", { textContent: q }), asked(), input,
+      el("div", { className: "row" }, el("span", { className: "hint", textContent: `Question ${state.answers.length + 1} of 3` }),
+        el("button", { className: "primary", type: "submit", textContent: "Answer" })));
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (!input.value.trim()) return;
+      state.answers.push({ question: q, answer: input.value.trim() });
+      run();
+    });
+    setTimeout(() => input.focus(), 0);
+    return form;
+  }
+
+  async function run() {
+    const btns = document.querySelectorAll("button");
+    btns.forEach((b) => (b.disabled = true));
+    $("send").textContent = "Checking the Act…";
+    $("out").replaceChildren(el("p", { className: "hint", textContent: "Searching the Act and checking each quote…" }));
+    let d;
+    try {
+      const r = await fetch("/assess", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(state) });
+      d = await r.json();
+      if (r.status === 422) d = { error: "invalid" };
+    } catch { d = { error: "upstream" }; }
+    btns.forEach((b) => (b.disabled = false));
+    $("send").textContent = "Check";
+    let view;
+    if (d.error) view = el("p", { className: "card banner", textContent: ERRORS[d.error] || "Something went wrong. Try again." });
+    else if (d.status === "needs_info") view = renderQuestion(d.question);
+    else if (d.status === "undetermined") view = el("article", { className: "card" },
+      el("p", { className: "banner", textContent: "Can't classify this without knowing: " + d.missing.join("; ") + ". The agent won't guess a fact that decides the outcome." }), asked());
+    else view = renderResult(d);
+    $("out").replaceChildren(view);
+    view.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (d.corpus_date) $("corpus").textContent = ` · Text version ${d.corpus_date}.`;
+  }
+
+  function start(description) {
+    state = { description, answers: [] };
+    $("desc").value = description;
+    run();
+  }
+
+  $("form").addEventListener("submit", (e) => { e.preventDefault(); const v = $("desc").value.trim(); if (v) start(v); });
+  $("desc").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) $("form").requestSubmit(); });
+  $("examples").addEventListener("click", (e) => { if (e.target.tagName === "BUTTON") start(e.target.textContent); });
+  fetch("/health").then((r) => r.json()).then((h) => { $("corpus").textContent = ` · Text version ${h.corpus_date}.`; }).catch(() => {});
+</script>
+</body>
+</html>
