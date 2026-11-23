@@ -86,7 +86,7 @@ def report(rows: list[dict], model: str) -> str:
             f"{pct(r['asked_ok'] for r in ambiguous)} |"
         ),
         f"| Didn't ask when the description was clear | {pct(r['asked_ok'] for r in clear)} |",
-        f"| Evidence quotes found in the retrieved text | "
+        f"| Evidence quotes accepted (in the retrieved text, from the right provision) | "
         f"{valid / submitted:.1%} ({valid}/{submitted}) |"
         if submitted
         else "| Evidence | none |",

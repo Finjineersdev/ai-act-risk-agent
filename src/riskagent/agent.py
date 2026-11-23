@@ -33,8 +33,10 @@ content, emotion recognition or biometric categorisation, deep fakes)?
 Evidence rules: every finding needs at least one evidence entry: a chunk_id from search results \
 you received in this conversation, and a quote copied exactly from that chunk (a full clause, not \
 a few words). A finding that a test does NOT apply also needs evidence: quote the provision you \
-checked the system against. Unsupported findings are removed by the system, and a tier whose \
-deciding findings are removed is rejected.
+checked the system against. Each finding must quote the provision it is about: Article 5 for \
+article_5, Annex I or Article 6 for annex_i, Annex III or Article 6 for annex_iii, Article 6 for \
+article_6_3, Article 50 for article_50 (a recital alone does not count). Unsupported findings are \
+removed by the system, and a tier whose deciding findings are removed is rejected.
 
 Tiers: prohibited (Article 5 applies) > high_risk (Annex I, or Annex III not exempted) > \
 transparency (only Article 50 duties) > minimal. List the obligations that follow for the tier \
@@ -189,7 +191,8 @@ def assess(description: str, answers: list[dict], retriever, client) -> Outcome:
             raise AgentError("truncated")
         if r.stop_reason == "refusal":
             raise AgentError("refused")
-        uses = {b.name: b for b in r.content if b.type == "tool_use"}
+        offered = {t["name"] for t in tools(can_ask)}
+        uses = {b.name: b for b in r.content if b.type == "tool_use" and b.name in offered}
         done = {"searches": searches, "calls": calls}
         if "submit_assessment" in uses:
             checked = verify_assessment(uses["submit_assessment"].input, retrieved)
@@ -200,8 +203,9 @@ def assess(description: str, answers: list[dict], retriever, client) -> Outcome:
             )
         if "ask_user" in uses:
             return Outcome("needs_info", question=uses["ask_user"].input["question"], **done)
-        messages.append({"role": "assistant", "content": r.content})
-        if not uses:
+        if r.content:  # an empty assistant turn would be rejected by the API
+            messages.append({"role": "assistant", "content": r.content})
+        if not any(b.type == "tool_use" for b in r.content):
             if nudged:
                 raise AgentError("no_decision")
             nudged = True

@@ -177,3 +177,19 @@ def test_reprompt_recovers(retriever):
     talk = msg("end_turn", NS(type="text", text="Thinking out loud."))
     out = assess(CV, [], retriever, FakeClient(search(), talk, msg("tool_use", submit())))
     assert out.status == "assessed"
+
+
+def test_ask_user_not_honoured_when_not_offered(retriever):
+    answers = [{"question": f"q{i}", "answer": f"a{i}"} for i in range(3)]
+    ask = msg("tool_use", use("ask_user", {"question": "q4?", "why": "w"}, "a1"))
+    c = FakeClient(ask, msg("tool_use", use("cannot_determine", {"missing": ["x"]})))
+    out = assess("An AI tool for HR teams.", answers, retriever, c)
+    assert out.status == "undetermined"
+    result = c.calls[1]["messages"][-1]["content"][0]
+    assert result["tool_use_id"] == "a1" and result["is_error"]
+
+
+def test_empty_assistant_turn_not_sent_back(retriever):
+    c = FakeClient(search(), msg("end_turn"), msg("tool_use", submit()))
+    assert assess(CV, [], retriever, c).status == "assessed"
+    assert all(m["content"] for m in c.calls[2]["messages"])

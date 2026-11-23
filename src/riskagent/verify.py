@@ -19,6 +19,14 @@ TESTS = ("article_5", "annex_i", "annex_iii", "article_6_3", "article_50", "role
 OUTCOMES = ("applies", "does_not_apply", "exempted")
 TIERS = ("prohibited", "high_risk", "transparency", "minimal")
 MIN_QUOTE = 20  # a shorter quote ("AI systems") proves nothing
+# a finding must quote the provision it is about (role and obligations may quote anything)
+SOURCES = {
+    "article_5": ("art_5",),
+    "annex_i": ("anx_I", "art_6"),
+    "annex_iii": ("anx_III", "art_6"),
+    "article_6_3": ("art_6",),
+    "article_50": ("art_50",),
+}
 
 
 @dataclass
@@ -36,6 +44,8 @@ def tier_problems(tier: str, outcomes: dict[str, str], profiles_people: bool) ->
     o = outcomes.get
     if tier == "prohibited":
         return [] if o("article_5") == "applies" else ["Article 5 must apply"]
+    if o("article_5") == "applies":
+        return ["Article 5 applies, so the system is prohibited"]
     if tier == "high_risk":
         annex_iii = o("annex_iii") == "applies" and (
             o("article_6_3") == "does_not_apply" or profiles_people
@@ -64,7 +74,7 @@ def tier_problems(tier: str, outcomes: dict[str, str], profiles_people: bool) ->
 def verify_assessment(a: dict, retrieved: dict[str, Chunk]) -> Checked:
     submitted = valid = removed = 0
 
-    def keep_valid(evidence: list[dict]) -> list[dict]:
+    def keep_valid(evidence: list[dict], test: str | None = None) -> list[dict]:
         nonlocal submitted, valid
         kept = []
         for e in evidence:
@@ -72,6 +82,8 @@ def verify_assessment(a: dict, retrieved: dict[str, Chunk]) -> Checked:
             chunk = retrieved.get(e.get("chunk_id", ""))
             quote = normalise(e.get("quote", ""))
             if chunk is None or len(quote) < MIN_QUOTE or quote not in chunk.text:
+                continue
+            if test in SOURCES and chunk.anchor not in SOURCES[test]:
                 continue
             valid += 1
             url = EURLEX.format(anchor=chunk.anchor)
@@ -82,7 +94,7 @@ def verify_assessment(a: dict, retrieved: dict[str, Chunk]) -> Checked:
         nonlocal removed
         out = []
         for item in items:
-            evidence = keep_valid(item.get("evidence", []))
+            evidence = keep_valid(item.get("evidence", []), item.get("test"))
             if evidence:
                 out.append({**item, "evidence": evidence})
             else:
@@ -91,10 +103,12 @@ def verify_assessment(a: dict, retrieved: dict[str, Chunk]) -> Checked:
 
     steps = clean(a.get("steps", []))
     obligations = clean(a.get("obligations", []))
-    outcomes: dict[str, str] = {}
+    seen: dict[str, set[str]] = {}
     for s in steps:
-        outcomes.setdefault(s["test"], s["outcome"])
-    problems = tier_problems(a.get("tier", ""), outcomes, bool(a.get("profiles_people")))
+        seen.setdefault(s["test"], set()).add(s["outcome"])
+    outcomes = {t: next(iter(v)) for t, v in seen.items() if len(v) == 1}
+    problems = [f"conflicting findings for {t}" for t, v in seen.items() if len(v) > 1]
+    problems += tier_problems(a.get("tier", ""), outcomes, bool(a.get("profiles_people")))
     return Checked(
         status="unverified" if problems else "assessed",
         assessment={**a, "steps": steps, "obligations": obligations},

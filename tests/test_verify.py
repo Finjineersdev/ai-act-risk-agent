@@ -178,3 +178,37 @@ def test_counts(by_id):
     r = verify_assessment(assessment("transparency", steps), by_id)
     assert (r.submitted, r.valid, r.removed_steps) == (4, 3, 0)
     assert r.status == "assessed"
+
+
+def test_conflicting_outcomes_unverified(by_id):
+    steps = [
+        *NEG,
+        step("article_5", "applies", ev("art_5#6")),
+        step("article_50", "does_not_apply", ev("art_50#0")),
+    ]
+    r = verify_assessment(assessment("minimal", steps), by_id)
+    assert r.status == "unverified"
+    assert any("article_5" in p for p in r.problems)
+
+
+@pytest.mark.parametrize("tier", ["high_risk", "transparency", "minimal"])
+def test_article_5_applies_blocks_lower_tiers(tier):
+    o = {
+        "article_5": "applies",
+        "annex_i": "applies",
+        "annex_iii": "does_not_apply",
+        "article_50": "applies" if tier == "transparency" else "does_not_apply",
+    }
+    assert tier_problems(tier, o, False)
+
+
+def test_evidence_must_come_from_the_tests_provision(by_id):
+    wrong = step("article_5", "does_not_apply", ev("art_50#0"))
+    steps = [
+        wrong,
+        step("annex_iii", "does_not_apply", ev("anx_III#4")),
+        step("article_50", "applies", ev("art_50#0")),
+    ]
+    r = verify_assessment(assessment("transparency", steps), by_id)
+    assert r.status == "unverified"
+    assert [s["test"] for s in r.assessment["steps"]] == ["annex_iii", "article_50"]
