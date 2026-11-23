@@ -91,20 +91,17 @@ def create_app(retriever=None, llm=None, client_factory=anthropic.Anthropic) -> 
         except AgentError as e:
             return JSONResponse({"error": e.code}, status_code=502)
         except anthropic.APIStatusError as e:
-            if key and e.status_code in (
-                401,
-                402,
-                403,
-            ):  # their key, or its account, can't run this
+            # their key is wrong, can't run this, or is out of credit: retrying won't help
+            if key and (e.status_code in (401, 402, 403) or is_spend_cap(e)):
                 return JSONResponse({"error": "bad_key"}, status_code=401)
             paused = not key and is_spend_cap(e)
             return JSONResponse({"error": "paused" if paused else "upstream"}, status_code=503)
         except anthropic.APIError:
             return JSONResponse({"error": "upstream"}, status_code=503)
         out = {"status": o.status}
-        for key in ("assessment", "question", "missing"):
-            if getattr(o, key) is not None:
-                out[key] = getattr(o, key)
+        for field in ("assessment", "question", "missing"):
+            if getattr(o, field) is not None:
+                out[field] = getattr(o, field)
         if o.checked is not None:
             out["problems"] = o.checked.problems
         return out | {"model": model, "corpus_date": CORPUS_DATE, "disclaimer": DISCLAIMER}

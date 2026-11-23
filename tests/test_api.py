@@ -227,3 +227,35 @@ def test_key_never_logged(demo, caplog):
         body = {"description": DESC + extra}
         demo.post("/assess", json=body, headers={"X-Anthropic-Key": KEY})
     assert KEY not in caplog.text
+
+
+def test_visitor_key_out_of_credit_is_bad_key(demo):
+    body = {"description": DESC + " spend"}
+    r = demo.post("/assess", json=body, headers={"X-Anthropic-Key": KEY})
+    assert r.status_code == 401 and r.json() == {"error": "bad_key"}
+
+
+def test_auth_error_inside_real_agent_loop(monkeypatch, retriever, caplog):
+    """An auth error on the agent's 2nd model call still maps to bad_key, key nowhere."""
+    import logging
+    from types import SimpleNamespace as NS
+
+    monkeypatch.setenv("DEMO", "1")
+    calls = []
+
+    def create(**kw):
+        calls.append(kw)
+        if len(calls) == 1:
+            tool = NS(type="tool_use", id="s1", name="search_act", input={"query": "recruitment"})
+            return NS(stop_reason="tool_use", content=[tool])
+        raise status_error(anthropic.AuthenticationError, 401, "invalid x-api-key")
+
+    def factory(api_key):
+        return NS(messages=NS(create=create))
+
+    caplog.set_level(logging.DEBUG)
+    with TestClient(api.create_app(retriever, "owner", client_factory=factory)) as c:
+        r = c.post("/assess", json={"description": DESC}, headers={"X-Anthropic-Key": KEY})
+    assert len(calls) == 2
+    assert r.status_code == 401 and r.json() == {"error": "bad_key"}
+    assert KEY not in r.text and KEY not in caplog.text
