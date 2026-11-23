@@ -104,7 +104,17 @@
   const ERRORS = { truncated: "The agent's answer was cut off, so it isn't shown. Try a shorter description.",
     refused: "The model declined this request.", too_many_steps: "The agent took too many steps without finishing. Try a more specific description.",
     no_decision: "The agent didn't reach a decision. Try adding detail.", upstream: "The model service is unavailable right now. Try again in a moment.",
-    no_api_key: "This server has no ANTHROPIC_API_KEY set. Add one to .env and restart.", invalid: "Please describe the system in at least a sentence (20+ characters)." };
+    no_api_key: "This server has no ANTHROPIC_API_KEY set. Add one to .env and restart.", description: "Describe the system in 20 to 4,000 characters.",
+    too_many_answers: "Only 3 follow-up answers are allowed. Start a new check.",
+    empty_answer: "Please type an answer (up to 1,000 characters).",
+    invalid: "That request wasn't valid. Reload the page and try again." };
+  function invalid(detail) {  // FastAPI 422: name the field that failed
+    const { loc = [], type } = (detail && detail[0]) || {};
+    if (loc.includes("description")) return "description";
+    if (loc.length === 2 && loc[1] === "answers" && type === "too_long") return "too_many_answers";
+    if (loc.includes("answers")) return "empty_answer";
+    return "invalid";
+  }
   let state = { description: "", answers: [] };
 
   function el(tag, props = {}, ...kids) {
@@ -132,7 +142,7 @@
     if (d.status === "unverified") card.append(el("p", { className: "banner",
       textContent: "The agent's conclusion couldn't be backed by verified quotes, so treat it as unconfirmed. " + (d.problems || []).join("; ") }));
     const a = d.assessment;
-    card.append(el("span", { className: "tier", textContent: TIERS[a.tier] || a.tier, style: `color: var(--t-${a.tier})` }));
+    card.append(el("span", { className: "tier", textContent: TIERS[a.tier] || a.tier, style: TIERS[a.tier] ? `color: var(--t-${a.tier})` : "color: var(--muted)" }));
     const flags = [a.role !== "unclear" ? `Role: ${a.role}` : "Role unclear: obligations shown for both",
       a.profiles_people ? "profiles people" : null, a.gpai_based ? "built on a general-purpose AI model" : null,
       a.transparency_duties && a.tier !== "transparency" ? "also has transparency duties" : null].filter(Boolean);
@@ -179,7 +189,7 @@
       const r = await fetch("/assess", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(state) });
       d = await r.json();
-      if (r.status === 422) d = { error: "invalid" };
+      if (r.status === 422) d = { error: invalid(d.detail) };
     } catch { d = { error: "upstream" }; }
     btns.forEach((b) => (b.disabled = false));
     $("send").textContent = "Check";
