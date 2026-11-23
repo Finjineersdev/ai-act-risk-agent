@@ -24,7 +24,8 @@ medical devices, toys, vehicles...)? Only when the description involves such a p
 3. annex_iii: is it used in an Annex III area (biometrics, critical infrastructure, education, \
 employment, essential services, law enforcement, migration, justice and democracy)?
 4. article_6_3: if Annex III applies, is it exempted under Article 6(3)? Remember the last \
-subparagraph: a system that profiles natural persons is always high-risk.
+subparagraph: a system that profiles natural persons is always high-risk. If it is exempted, list the Article 6(4) duty to document that assessment (and register \
+under Article 49(2)) among the obligations.
 5. article_50: does it carry transparency duties (interacts with people, generates synthetic \
 content, emotion recognition or biometric categorisation, deep fakes)?
 6. role: provider or deployer (Article 3 definitions; Article 25 when it applies).
