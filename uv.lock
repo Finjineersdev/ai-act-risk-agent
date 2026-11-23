@@ -9,8 +9,8 @@ resolution-markers = [
 
 [[package]]
 name = "actrag"
-version = "1.1.0"
-source = { git = "https://github.com/Finjineersdev/eu-ai-act-rag?rev=v1.1.0#8ee957873799896ce8e4c1bca3635b3a5ececaf3" }
+version = "1.1.1"
+source = { git = "https://github.com/Finjineersdev/eu-ai-act-rag?rev=v1.1.1#70d893cd3d64a603c4146696d88e82f9dc5adea7" }
 dependencies = [
     { name = "anthropic" },
     { name = "defusedxml" },
@@ -1311,7 +1311,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "actrag", git = "https://github.com/Finjineersdev/eu-ai-act-rag?rev=v1.1.0" },
+    { name = "actrag", git = "https://github.com/Finjineersdev/eu-ai-act-rag?rev=v1.1.1" },
     { name = "anthropic", specifier = ">=2.12.0" },
     { name = "fastapi", specifier = ">=0.165.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
