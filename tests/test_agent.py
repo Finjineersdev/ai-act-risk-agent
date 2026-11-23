@@ -253,3 +253,9 @@ def test_overlong_question_sent_back(retriever):
     assert assess(CV, [], retriever, c).status == "assessed"
     err = c.calls[1]["messages"][-1]["content"][0]
     assert err["tool_use_id"] == "a" and err["is_error"]
+
+
+def test_model_argument_used(retriever):
+    c = FakeClient(search(), msg("tool_use", submit()))
+    assess(CV, [], retriever, c, model="claude-haiku-5-5")
+    assert {call["model"] for call in c.calls} == {"claude-haiku-5-5"}

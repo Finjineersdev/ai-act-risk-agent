@@ -62,6 +62,10 @@
   footer { margin-top: 40px; color: var(--muted); font-size: .85rem; }
   @media (prefers-reduced-motion: no-preference) { .card { animation: in .2s ease-out; } }
   @keyframes in { from { opacity: 0; transform: translateY(4px); } }
+  .demo { display: none; font-size: .9rem; }
+  .demo details { margin-top: 8px; }
+  .demo input { width: 100%; margin-top: 6px; padding: 8px; font: inherit; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); box-sizing: border-box; }
+  .via { color: var(--muted); font-size: .8rem; margin: 6px 0 0; }
 </style>
 </head>
 <body>
@@ -70,6 +74,15 @@
     <h1>AI Act risk check</h1>
     <p>Describe an AI system. An agent works through the EU AI Act's tests and backs every step with a quote that is checked against the official text.</p>
   </header>
+
+  <section class="demo banner" id="demo" aria-label="About this live demo">
+    <p id="demo-text"></p>
+    <details>
+      <summary>Use your own Anthropic key to run Claude Opus 5.5</summary>
+      <label for="key" class="hint">Used for your requests only, never stored or logged.</label>
+      <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
+    </details>
+  </section>
 
   <form class="card" id="form">
     <label for="desc" class="hint">What does your AI system do, and who uses it?</label>
@@ -101,7 +114,11 @@
     article_50: "Transparency (Article 50)", role: "Your role" };
   const OUTCOMES = { applies: "applies", does_not_apply: "does not apply", exempted: "exempted" };
   const TIERS = { prohibited: "Prohibited", high_risk: "High-risk", transparency: "Transparency duties", minimal: "Minimal risk" };
-  const ERRORS = { truncated: "The agent's answer was cut off, so it isn't shown. Try a shorter description.",
+  const ERRORS = { rate_limited: "You've reached this demo's hourly limit. Try the examples, or add your own Anthropic key above.",
+    busy: "The live demo is busy: its hourly limit across all visitors is used up. Try the examples, or add your own key above.",
+    bad_key: "Anthropic didn't accept that key, or its account can't run requests. Check it and try again.",
+    paused: "The live demo is paused for now (its monthly budget is used up). The examples still work.",
+    truncated: "The agent's answer was cut off, so it isn't shown. Try a shorter description.",
     refused: "The model declined this request.", too_many_steps: "The agent took too many steps without finishing. Try a more specific description.",
     no_decision: "The agent didn't reach a decision. Try adding detail.", upstream: "The model service is unavailable right now. Try again in a moment.",
     no_api_key: "This server has no ANTHROPIC_API_KEY set. Add one to .env and restart.", description: "Describe the system in 20 to 4,000 characters.",
@@ -116,6 +133,8 @@
     return "invalid";
   }
   let state = { description: "", answers: [] };
+  let demo = false, examples = [];
+  const MODELS = { "claude-opus-5-5": "Claude Opus 5.5", "claude-haiku-5-5": "Claude Haiku 5.5" };
 
   function el(tag, props = {}, ...kids) {
     const n = Object.assign(document.createElement(tag), props);
@@ -133,7 +152,7 @@
   }
 
   function asked() {
-    if (!state.answers.length) return null;
+    if (!state.answers.length) return "";  // append(null) would print "null"
     return el("div", {}, ...state.answers.map((a) => el("p", { className: "qa", textContent: `${a.question} → ${a.answer}` })));
   }
 
@@ -142,7 +161,10 @@
     if (d.status === "unverified") card.append(el("p", { className: "banner",
       textContent: "The agent's conclusion couldn't be backed by verified quotes, so treat it as unconfirmed. " + (d.problems || []).join("; ") }));
     const a = d.assessment;
+    const via = d.saved_on ? `Saved result · ${MODELS[d.model] || d.model} · ${d.saved_on}`
+      : demo ? `Assessed live by ${MODELS[d.model] || d.model}` : "";
     card.append(el("span", { className: "tier", textContent: TIERS[a.tier] || a.tier, style: TIERS[a.tier] ? `color: var(--t-${a.tier})` : "color: var(--muted)" }));
+    if (via) card.append(el("p", { className: "via", textContent: via }));
     const flags = [a.role !== "unclear" ? `Role: ${a.role}` : "Role unclear: obligations shown for both",
       a.profiles_people ? "profiles people" : null, a.gpai_based ? "built on a general-purpose AI model" : null,
       a.transparency_duties && a.tier !== "transparency" ? "also has transparency duties" : null].filter(Boolean);
@@ -179,15 +201,17 @@
     return form;
   }
 
-  async function run() {
+  async function run(saved) {
     const btns = document.querySelectorAll("button");
     btns.forEach((b) => (b.disabled = true));
     $("send").textContent = "Checking the Act…";
     $("out").replaceChildren(el("p", { className: "hint", textContent: "Searching the Act and checking each quote…" }));
-    let d;
-    try {
-      const r = await fetch("/assess", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(state) });
+    let d = saved;
+    if (!d) try {
+      const headers = { "Content-Type": "application/json" };
+      const key = $("key").value.trim();
+      if (key) headers["X-Anthropic-Key"] = key;
+      const r = await fetch("/assess", { method: "POST", headers, body: JSON.stringify(state) });
       d = await r.json();
       if (r.status === 422) d = { error: invalid(d.detail) };
     } catch { d = { error: "upstream" }; }
@@ -204,15 +228,27 @@
     if (d.corpus_date) $("corpus").textContent = ` · Text version ${d.corpus_date}.`;
   }
 
-  function start(description) {
+  function start(description, saved) {
     state = { description, answers: [] };
     $("desc").value = description;
-    run();
+    run(saved);
   }
 
   $("form").addEventListener("submit", (e) => { e.preventDefault(); const v = $("desc").value.trim(); if (v) start(v); });
   $("desc").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) $("form").requestSubmit(); });
-  $("examples").addEventListener("click", (e) => { if (e.target.tagName === "BUTTON") start(e.target.textContent); });
+  $("examples").addEventListener("click", (e) => {
+    if (e.target.tagName !== "BUTTON") return;
+    const d = e.target.textContent;
+    start(d, demo ? examples.find((x) => x.description === d) : undefined);
+  });
+  fetch("/config").then((r) => r.json()).then(async (c) => {
+    if (!c.demo) return;
+    demo = true;
+    examples = await fetch("/examples").then((r) => r.json()).catch(() => []);
+    $("demo-text").textContent = "Live demo: the examples show saved assessments from Claude Opus 5.5. "
+      + "Descriptions you type run on Claude Haiku 5.5, up to 5 per hour.";
+    $("demo").style.display = "block";
+  }).catch(() => {});
   fetch("/health").then((r) => r.json()).then((h) => { $("corpus").textContent = ` · Text version ${h.corpus_date}.`; }).catch(() => {});
 </script>
 </body>

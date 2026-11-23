@@ -13,7 +13,7 @@ DESC = "We sell software that screens CVs and ranks applicants for interviews."
 @pytest.fixture
 def make(retriever, monkeypatch):
     def _make(result=None, llm=FAKE_LLM):
-        def fake_assess(description, answers, r, client):
+        def fake_assess(description, answers, r, client, model=None):
             if isinstance(result, Exception):
                 raise result
             fake_assess.seen = (description, answers)
@@ -104,3 +104,126 @@ def test_health(make):
 def test_index_served(make):
     r = make().get("/")
     assert r.status_code == 200 and "<title>" in r.text
+
+
+# --- demo mode -------------------------------------------------------------------------
+
+from actrag.demo import DEMO_MODEL, FULL_MODEL
+
+KEY = "sk-ant-visitor-secret-123"
+ANS = {"question": "What does it do?", "answer": "It ranks CVs."}
+
+
+def status_error(cls, status, message):
+    r = httpx.Response(status, request=httpx.Request("POST", "https://api.anthropic.com"))
+    return cls(message, response=r, body={"type": "error", "error": {"message": message}})
+
+
+@pytest.fixture
+def demo(monkeypatch, retriever):
+    monkeypatch.setenv("DEMO", "1")
+    seen = {"clients": []}
+
+    def fake_assess(description, answers, r, client, model=None):
+        seen["model"], seen["client"] = model, client
+        if "spend" in description:
+            raise status_error(
+                anthropic.BadRequestError, 400, "You have reached your specified API usage limits."
+            )
+        if "nobilling" in description:
+            raise status_error(anthropic.PermissionDeniedError, 403, "not allowed")
+        if "badkey" in description:
+            raise status_error(anthropic.AuthenticationError, 401, "invalid x-api-key")
+        return Outcome("assessed", {"tier": "minimal"})
+
+    def factory(api_key):
+        seen["clients"].append(api_key)
+        return ("visitor-client", api_key)
+
+    monkeypatch.setattr(api, "assess", fake_assess)
+    c = TestClient(api.create_app(retriever, "owner-client", client_factory=factory))
+    c.__enter__()
+    c.seen = seen
+    return c
+
+
+def test_demo_uses_haiku_without_key(demo):
+    r = demo.post("/assess", json={"description": DESC})
+    assert r.status_code == 200 and r.json()["model"] == DEMO_MODEL
+    assert demo.seen["model"] == DEMO_MODEL and demo.seen["client"] == "owner-client"
+
+
+def test_demo_rate_limited_after_5(demo):
+    codes = [demo.post("/assess", json={"description": DESC}).status_code for _ in range(6)]
+    assert codes == [200] * 5 + [429]
+    assert demo.post("/assess", json={"description": DESC}).json() == {"error": "rate_limited"}
+
+
+def test_needs_info_followup_counts_toward_limit(demo):
+    for _ in range(5):
+        demo.post("/assess", json={"description": DESC, "answers": [ANS]})
+    r = demo.post("/assess", json={"description": DESC, "answers": [ANS, ANS]})
+    assert r.status_code == 429
+
+
+def test_byok_uses_opus_and_skips_limit(demo):
+    for _ in range(5):
+        demo.post("/assess", json={"description": DESC})
+    r = demo.post("/assess", json={"description": DESC}, headers={"X-Anthropic-Key": KEY})
+    assert r.status_code == 200 and r.json()["model"] == FULL_MODEL
+    assert demo.seen["clients"] == [KEY] and demo.seen["model"] == FULL_MODEL
+
+
+def test_bad_key_401_never_echoed(demo):
+    body = {"description": DESC + " badkey"}
+    r = demo.post("/assess", json=body, headers={"X-Anthropic-Key": KEY})
+    assert r.status_code == 401 and r.json() == {"error": "bad_key"}
+    assert KEY not in r.text
+
+
+def test_spend_cap_paused(demo):
+    r = demo.post("/assess", json={"description": DESC + " spend"})
+    assert r.status_code == 503 and r.json() == {"error": "paused"}
+
+
+def test_config_endpoint(demo):
+    assert demo.get("/config").json() == {"demo": True, "model": DEMO_MODEL, "byok": True}
+
+
+def test_demo_off_unchanged(make):
+    c = make(Outcome("assessed", {"tier": "minimal"}))
+    assert all(c.post("/assess", json={"description": DESC}).status_code == 200 for _ in range(7))
+    assert c.get("/config").json()["demo"] is False
+
+
+def test_byok_served_when_global_cap_full(demo):
+    from actrag.demo import Limiter
+
+    demo.app.state.limiter = Limiter(per_ip=5, total=0)
+    assert demo.post("/assess", json={"description": DESC}).json() == {"error": "busy"}
+    r = demo.post("/assess", json={"description": DESC}, headers={"X-Anthropic-Key": KEY})
+    assert r.status_code == 200
+
+
+def test_byok_has_its_own_looser_limit(demo):
+    h = {"X-Anthropic-Key": KEY}
+    codes = [
+        demo.post("/assess", json={"description": DESC}, headers=h).status_code for _ in range(31)
+    ]
+    assert codes == [200] * 30 + [429]
+
+
+def test_visitor_key_without_permission_is_bad_key(demo):
+    body = {"description": DESC + " nobilling"}
+    r = demo.post("/assess", json=body, headers={"X-Anthropic-Key": KEY})
+    assert r.status_code == 401 and r.json() == {"error": "bad_key"}
+
+
+def test_key_never_logged(demo, caplog):
+    import logging
+
+    caplog.set_level(logging.DEBUG)
+    for extra in ("", " badkey", " spend"):
+        body = {"description": DESC + extra}
+        demo.post("/assess", json=body, headers={"X-Anthropic-Key": KEY})
+    assert KEY not in caplog.text

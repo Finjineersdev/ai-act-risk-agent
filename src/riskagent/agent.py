@@ -172,7 +172,10 @@ def format_results(chunks: list[Chunk]) -> str:
     return "\n\n".join(f"[{c.id}] {c.ref} — {c.title}\n{c.text}" for c in chunks)
 
 
-def assess(description: str, answers: list[dict], retriever, client) -> Outcome:
+def assess(
+    description: str, answers: list[dict], retriever, client, model: str | None = None
+) -> Outcome:
+    model = model or MODEL
     can_ask = len(answers) < MAX_QUESTIONS
     messages: list[dict] = [{"role": "user", "content": first_message(description, answers)}]
     retrieved: dict[str, Chunk] = {}
@@ -182,7 +185,7 @@ def assess(description: str, answers: list[dict], retriever, client) -> Outcome:
         if calls >= MAX_CALLS:
             raise AgentError("too_many_steps")
         r = client.messages.create(
-            model=MODEL,
+            model=model,
             max_tokens=16000,
             system=SYSTEM,
             thinking={"type": "adaptive"},
