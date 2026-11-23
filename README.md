@@ -78,7 +78,9 @@ survived quote-checking support it:
 | Minimal | as above, and Article 50 doesn't apply |
 
 A quote shorter than 20 characters doesn't count ("AI systems" appears everywhere and proves
-nothing), and evidence can only point at chunks the agent's own searches returned in that run.
+nothing), evidence can only point at chunks the agent's own searches returned in that run, and a
+finding must quote the provision it is about (an Article 50 quote can't settle Article 5).
+Conflicting findings for the same test make the result `unverified`.
 
 ## Evals
 
@@ -89,15 +91,15 @@ Measured on 2026-11-23 with `claude-opus-5-5` on 30 hand-written system descript
 |---|---|
 | Correct tier, accepted by the checker | **100%** (30/30) |
 | Asked a question when the description was too vague | **100%** (4/4) |
-| Didn't ask when the description was clear | 88% (23/26) |
-| Evidence quotes found in the text the agent retrieved | **99.7%** (350/351) |
+| Didn't ask when the description was clear | 92% (24/26) |
+| Evidence quotes accepted: in the retrieved text, from the provision the finding is about | **98.8%** (340/344) |
 | Errors (cut off, refused, ran out of steps) | 0 |
 
 The cases cover prohibited practices (emotion recognition at work, social scoring, face scraping),
 Annex III uses (CV screening, credit scoring, exam proctoring, benefits, migration), Annex I safety
 components (medical device, industrial robot, lifts), Article 6(3) exemptions, transparency-only
 systems, minimal-risk systems, four deliberately vague descriptions, and one description that tries
-to instruct the agent to say "prohibited". In the three clear cases where it still asked, it asked
+to instruct the agent to say "prohibited". In the two clear cases where it still asked, it asked
 one question and then classified correctly.
 
 ## Run it
@@ -117,7 +119,7 @@ uv run uvicorn riskagent.api:app --reload
 Tests and evals:
 
 ```bash
-uv run pytest                 # 82 tests, fake model client, no network or API key
+uv run pytest                 # 89 tests, fake model client, no network or API key
 uv run python evals/run.py    # the 30-case golden set against Claude
 ```
 
