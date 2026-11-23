@@ -92,7 +92,7 @@ Measured on 2026-11-23 with `claude-opus-5-5` on 30 hand-written system descript
 | Correct tier, accepted by the checker | **100%** (30/30) |
 | Asked a question when the description was too vague | **100%** (4/4) |
 | Didn't ask when the description was clear | 92% (24/26) |
-| Evidence quotes accepted: in the retrieved text, from the provision the finding is about | **98.8%** (340/344) |
+| Evidence quotes accepted: in the retrieved text, from the provision the finding is about | **97.8%** (316/323) |
 | Errors (cut off, refused, ran out of steps) | 0 |
 
 The cases cover prohibited practices (emotion recognition at work, social scoring, face scraping),
@@ -119,7 +119,7 @@ uv run uvicorn riskagent.api:app --reload
 Tests and evals:
 
 ```bash
-uv run pytest                 # 89 tests, fake model client, no network or API key
+uv run pytest                 # 93 tests, fake model client, no network or API key
 uv run python evals/run.py    # the 30-case golden set against Claude
 ```
 

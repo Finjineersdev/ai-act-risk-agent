@@ -113,6 +113,19 @@ An Annex III system exempted under Article 6(3) therefore ends as `transparency`
 result notes the Article 6(4) duty to document the assessment and register it. `annex_i` is only
 required when the description involves a regulated product; otherwise its absence is not a gap.
 
+### Checker hardening (v1.1, from the final reviews)
+
+- **Evidence must quote the provision it is about.** `article_5` needs Article 5; `annex_i` needs
+  Annex I or Article 6; `annex_iii` needs Annex III or Article 6; `article_6_3` and `article_50` need
+  their own Article (the `SOURCES` map in `verify.py`). Role and obligations may quote anything.
+- **Conflicting findings** (two verified steps for one test with different outcomes) make the result
+  `unverified`.
+- **Article 5 verified as applying** blocks every tier except `prohibited`.
+- **Only the tools offered that turn are honoured**; others get an `is_error` result.
+- **A terminal tool called twice in one turn** is not honoured; each call gets an `is_error` result
+  and the model tries again.
+- **At most 4 searches per turn**; extra searches get an `is_error` result.
+
 ### When questions run out (builder's call)
 
 After 3 answered questions, the agent may not ask again. If a deciding fact is still missing, it
