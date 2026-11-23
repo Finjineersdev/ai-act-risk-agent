@@ -1,4 +1,5 @@
 FROM python:3.12-slim
+LABEL org.opencontainers.image.source=https://github.com/Finjineersdev/ai-act-risk-agent
 COPY --from=ghcr.io/astral-sh/uv:0.12.7 /uv /bin/uv
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy FASTEMBED_CACHE_PATH=/models

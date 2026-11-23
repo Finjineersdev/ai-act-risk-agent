@@ -84,23 +84,41 @@ Conflicting findings for the same test make the result `unverified`.
 
 ## Evals
 
-Measured on 2026-11-23 with `claude-opus-5-5` on 30 hand-written system descriptions
-([golden set](evals/golden.jsonl), [full report](evals/results/assessments.md)):
+Measured on 30 hand-written system descriptions with each model ([golden set](evals/golden.jsonl),
+[Opus report](evals/results/assessments.md), [Haiku report](evals/results/assessments-claude-haiku-5-5.md)).
+The live demo runs Haiku for typed descriptions.
 
-| Metric | Result |
-|---|---|
-| Correct tier, accepted by the checker | **100%** (30/30) |
-| Asked a question when the description was too vague | **100%** (4/4) |
-| Didn't ask when the description was clear | 92% (24/26) |
-| Evidence quotes accepted: in the retrieved text, from the provision the finding is about | **97.8%** (316/323) |
-| Errors (cut off, refused, ran out of steps) | 0 |
+| Metric | Claude Opus 5.5 | Claude Haiku 5.5 |
+|---|---|---|
+| Correct tier, accepted by the checker | **100%** (30/30) | **100%** (30/30) |
+| Asked a question when the description was too vague | **100%** (4/4) | **100%** (4/4) |
+| Didn't ask when the description was clear | 92% (24/26) | 81% (21/26) |
+| Evidence quotes accepted: in the retrieved text, from the provision the finding is about | **97.8%** (316/323) | 93.9% (353/376) |
+| Errors (cut off, refused, ran out of steps) | 0 | 0 |
 
 The cases cover prohibited practices (emotion recognition at work, social scoring, face scraping),
 Annex III uses (CV screening, credit scoring, exam proctoring, benefits, migration), Annex I safety
 components (medical device, industrial robot, lifts), Article 6(3) exemptions, transparency-only
 systems, minimal-risk systems, four deliberately vague descriptions, and one description that tries
-to instruct the agent to say "prohibited". In the two clear cases where it still asked, it asked
-one question and then classified correctly.
+to instruct the agent to say "prohibited". Whenever a clear case still got a question (2 for Opus,
+5 for Haiku), it was a single question and the tier that followed was correct.
+
+## Live demo
+
+<!-- LIVE_LINK -->
+
+The public demo keeps the bill bounded:
+
+- The examples show **saved assessments from Claude Opus 5.5** (labelled with their date). No API call.
+- Descriptions you type run on **Claude Haiku 5.5**, up to 5 per visitor per hour and 100 per hour in
+  total. A follow-up answer counts as a request.
+- Paste your own Anthropic key to run **Claude Opus 5.5**. It is used for your requests only, held in
+  memory for that request, and never stored or logged.
+- If the owner's monthly spend limit is reached, the demo says it is paused and the examples keep working.
+
+All of this is switched on by `DEMO=1`; a local run is unchanged. `GET /config` reports the mode,
+`GET /examples` serves the saved assessments, and an optional `X-Anthropic-Key` header on
+`POST /assess` runs that request with the visitor's key.
 
 ## Run it
 
@@ -119,7 +137,7 @@ uv run uvicorn riskagent.api:app --reload
 Tests and evals:
 
 ```bash
-uv run pytest                 # 95 tests, fake model client, no network or API key
+uv run pytest                 # 109 tests, fake model client, no network or API key
 uv run python evals/run.py    # the 30-case golden set against Claude
 ```
 
@@ -172,7 +190,9 @@ curl -s localhost:8001/assess -H 'content-type: application/json' \
 | `undetermined` | Questions used up and a deciding fact is still `missing`; no tier is guessed |
 | `unverified` | The verified steps don't support the proposed tier; `problems` says why |
 | HTTP 502 | `truncated`, `refused`, `too_many_steps` (over 12 model calls) or `no_decision` |
-| HTTP 503 | `no_api_key` or `upstream` |
+| HTTP 503 | `no_api_key`, `upstream`, or `paused` (demo: the owner's monthly spend limit is reached) |
+| HTTP 429 | demo only: `rate_limited` (this visitor's hourly limit) or `busy` (the hourly limit across all visitors) |
+| HTTP 401 | `bad_key`: the key sent in `X-Anthropic-Key` was not accepted |
 
 ## Design decisions
 
@@ -193,7 +213,7 @@ Full design: [`docs/design.md`](docs/design.md).
 ## Source and licence
 
 Text: Regulation (EU) 2024/1689 (Artificial Intelligence Act), via
-[eu-ai-act-rag](https://github.com/Finjineersdev/eu-ai-act-rag) v1.1.1 (official text dated
+[eu-ai-act-rag](https://github.com/Finjineersdev/eu-ai-act-rag) v1.2.0 (official text dated
 2024-10-17). Amendments after that version, and the dates from which each obligation applies, are
 not covered. EU legal texts are reused under Commission Decision 2011/833/EU.
 

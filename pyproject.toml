@@ -1,6 +1,6 @@
 [project]
 name = "riskagent"
-version = "1.1.0"
+version = "1.2.0"
 description = "Classify an AI system under the EU AI Act, with every step backed by a checked quote."
 readme = "README.md"
 authors = [{ name = "Haseeb Hanif" }]

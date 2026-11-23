@@ -1,4 +1,4 @@
-from evals.run import run_case
+from evals.run import report_name, run_case
 from riskagent.agent import AgentError, Outcome
 from riskagent.verify import Checked
 
@@ -58,3 +58,10 @@ def test_unplanned_question_gets_generic_answer_and_counts_against():
 def test_agent_error_recorded():
     row = run_case(CASE, None, None, scripted(AgentError("truncated")))
     assert row["status"] == "truncated" and not row["tier_ok"]
+
+
+def test_report_path_per_model():
+    assert report_name("assessments.md", "claude-opus-5-5") == "assessments.md"
+    assert (
+        report_name("assessments.jsonl", "claude-haiku-5-5") == "assessments-claude-haiku-5-5.jsonl"
+    )

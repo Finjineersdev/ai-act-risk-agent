@@ -114,6 +114,14 @@ def report(rows: list[dict], model: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+def report_name(base: str, model: str) -> str:
+    """The Opus report keeps its name; other models get their own file."""
+    if model == "claude-opus-5-5":
+        return base
+    stem, ext = base.rsplit(".", 1)
+    return f"{stem}-{model}.{ext}"
+
+
 def main() -> None:
     import anthropic
     from actrag.retrieve import Retriever
@@ -132,8 +140,10 @@ def main() -> None:
     out = ROOT / "results"
     out.mkdir(exist_ok=True)
     text = report(rows, MODEL)
-    (out / "assessments.md").write_text(text)
-    (out / "assessments.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    (out / report_name("assessments.md", MODEL)).write_text(text)
+    (out / report_name("assessments.jsonl", MODEL)).write_text(
+        "".join(json.dumps(r) + "\n" for r in rows)
+    )
     print(text)
 
 
