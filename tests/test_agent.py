@@ -229,3 +229,27 @@ def test_submit_wins_over_many_searches(retriever):
     )
     out = assess(CV, [], retriever, FakeClient(search(), many))
     assert out.status == "assessed" and out.searches == 1
+
+
+def test_duplicate_terminal_rejects_whole_turn(retriever):
+    turn = msg(
+        "tool_use",
+        submit(id_="a"),
+        submit(id_="b"),
+        use("ask_user", {"question": "q?", "why": "w"}, "c"),
+    )
+    c = FakeClient(search(), turn, msg("tool_use", submit()))
+    assert assess(CV, [], retriever, c).status == "assessed"
+    errs = c.calls[2]["messages"][-1]["content"]
+    assert {e["tool_use_id"] for e in errs} == {"a", "b", "c"}
+    assert all(e["is_error"] for e in errs)
+
+
+def test_overlong_question_sent_back(retriever):
+    long_q = {"question": "x" * 1001, "why": "w"}
+    c = FakeClient(
+        msg("tool_use", use("ask_user", long_q, "a")), search(), msg("tool_use", submit())
+    )
+    assert assess(CV, [], retriever, c).status == "assessed"
+    err = c.calls[1]["messages"][-1]["content"][0]
+    assert err["tool_use_id"] == "a" and err["is_error"]

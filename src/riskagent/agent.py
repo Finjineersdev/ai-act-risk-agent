@@ -14,6 +14,7 @@ MAX_CALLS = 12
 MAX_QUESTIONS = 3
 SEARCH_K = 8
 MAX_SEARCHES_PER_TURN = 4
+MAX_QUESTION_CHARS = 1000  # the API rejects longer questions when they come back
 TERMINAL = ("submit_assessment", "cannot_determine", "ask_user")  # priority order
 
 SYSTEM = """You classify an AI system under the EU AI Act (Regulation (EU) 2024/1689). The user \
@@ -198,8 +199,11 @@ def assess(description: str, answers: list[dict], retriever, client) -> Outcome:
         for b in r.content:
             if b.type == "tool_use" and b.name in offered:
                 uses.setdefault(b.name, []).append(b)
-        # a terminal tool counts only when called exactly once in the turn
-        final = next((n for n in TERMINAL if len(uses.get(n, [])) == 1), None)
+        # a turn that calls any terminal tool more than once ends nothing; the model retries
+        dup = any(len(uses.get(n, [])) > 1 for n in TERMINAL)
+        final = None if dup else next((n for n in TERMINAL if n in uses), None)
+        if final == "ask_user" and len(uses[final][0].input["question"]) > MAX_QUESTION_CHARS:
+            final = None
         done = {"searches": searches, "calls": calls}
         if final == "submit_assessment":
             checked = verify_assessment(uses[final][0].input, retrieved)
@@ -222,12 +226,16 @@ def assess(description: str, answers: list[dict], retriever, client) -> Outcome:
             if b.type != "tool_use":
                 continue
             error = None
-            if b.name in TERMINAL and b.name in offered:
-                error = f"Call {b.name} exactly once per turn."
+            if b.name == "ask_user" and len(b.input["question"]) > MAX_QUESTION_CHARS and not dup:
+                error = f"Keep the question under {MAX_QUESTION_CHARS} characters."
+            elif b.name in TERMINAL and b.name in offered:
+                error = "Call exactly one of submit_assessment, ask_user, cannot_determine, once."
             elif b.name != "search_act":
                 error = f"Unknown tool {b.name}."
             elif turn_searches >= MAX_SEARCHES_PER_TURN:
-                error = "At most 4 searches per turn; search again next turn."
+                error = (
+                    f"At most {MAX_SEARCHES_PER_TURN} searches per turn; search again next turn."
+                )
             if error:
                 results.append(
                     {"type": "tool_result", "tool_use_id": b.id, "is_error": True, "content": error}

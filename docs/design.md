@@ -122,8 +122,10 @@ required when the description involves a regulated product; otherwise its absenc
   `unverified`.
 - **Article 5 verified as applying** blocks every tier except `prohibited`.
 - **Only the tools offered that turn are honoured**; others get an `is_error` result.
-- **A terminal tool called twice in one turn** is not honoured; each call gets an `is_error` result
-  and the model tries again.
+- **A turn that calls any terminal tool more than once ends nothing**: every terminal call in
+  that turn gets an `is_error` result and the model tries again.
+- **A question over 1,000 characters is sent back** to the model to shorten, because the API
+  would reject it when it comes back in `answers`.
 - **At most 4 searches per turn**; extra searches get an `is_error` result.
 
 ### When questions run out (builder's call)

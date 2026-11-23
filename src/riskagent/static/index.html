@@ -112,7 +112,7 @@
     const { loc = [], type } = (detail && detail[0]) || {};
     if (loc.includes("description")) return "description";
     if (loc.length === 2 && loc[1] === "answers" && type === "too_long") return "too_many_answers";
-    if (loc.includes("answers")) return "empty_answer";
+    if (loc.includes("answers") && loc[3] === "answer") return "empty_answer";
     return "invalid";
   }
   let state = { description: "", answers: [] };
