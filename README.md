@@ -118,7 +118,11 @@ The public demo keeps the bill bounded:
 
 All of this is switched on by `DEMO=1`; a local run is unchanged. `GET /config` reports the mode,
 `GET /examples` serves the saved assessments, and an optional `X-Anthropic-Key` header on
-`POST /assess` runs that request with the visitor's key.
+`POST /assess` runs that request with the visitor's key. The per-visitor limit needs the visitor's real
+address from behind the host's proxy: set `CLIENT_IP_HEADER` to a header the proxy sets and
+overwrites (on Render: `CF-Connecting-IP`), or `PROXY_HOPS` to how many proxies append to
+`X-Forwarded-For` (default 1). When a call to Anthropic fails, the log shows the error type and
+status, never a key.
 
 ## Run it
 
@@ -137,7 +141,7 @@ uv run uvicorn riskagent.api:app --reload
 Tests and evals:
 
 ```bash
-uv run pytest                 # 111 tests, fake model client, no network or API key
+uv run pytest                 # 112 tests, fake model client, no network or API key
 uv run python evals/run.py    # the 30-case golden set against Claude
 ```
 
@@ -213,7 +217,7 @@ Full design: [`docs/design.md`](docs/design.md).
 ## Source and licence
 
 Text: Regulation (EU) 2024/1689 (Artificial Intelligence Act), via
-[eu-ai-act-rag](https://github.com/Finjineersdev/eu-ai-act-rag) v1.2.0 (official text dated
+[eu-ai-act-rag](https://github.com/Finjineersdev/eu-ai-act-rag) v1.2.2 (official text dated
 2024-10-17). Amendments after that version, and the dates from which each obligation applies, are
 not covered. EU legal texts are reused under Commission Decision 2011/833/EU.
 

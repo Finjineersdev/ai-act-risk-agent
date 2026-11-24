@@ -259,3 +259,14 @@ def test_auth_error_inside_real_agent_loop(monkeypatch, retriever, caplog):
     assert len(calls) == 2
     assert r.status_code == 401 and r.json() == {"error": "bad_key"}
     assert KEY not in r.text and KEY not in caplog.text
+
+
+def test_upstream_error_logged_without_key(demo, caplog):
+    import logging
+
+    caplog.set_level(logging.WARNING)
+    body = {"description": DESC + " badkey"}
+    demo.post("/assess", json=body, headers={"X-Anthropic-Key": KEY})
+    demo.post("/assess", json=body)
+    assert "AuthenticationError 401" in caplog.text
+    assert KEY not in caplog.text

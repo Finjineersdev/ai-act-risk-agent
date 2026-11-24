@@ -1,6 +1,6 @@
 [project]
 name = "riskagent"
-version = "1.2.0"
+version = "1.2.1"
 description = "Classify an AI system under the EU AI Act, with every step backed by a checked quote."
 readme = "README.md"
 authors = [{ name = "Haseeb Hanif" }]
@@ -17,7 +17,7 @@ requires = ["uv_build>=0.12.7,<0.13.0"]
 build-backend = "uv_build"
 
 [tool.uv.sources]
-actrag = { url = "https://github.com/Finjineersdev/eu-ai-act-rag/archive/refs/tags/v1.2.0.tar.gz" }
+actrag = { url = "https://github.com/Finjineersdev/eu-ai-act-rag/archive/refs/tags/v1.2.2.tar.gz" }
 
 [dependency-groups]
 dev = [
