@@ -105,7 +105,7 @@ to instruct the agent to say "prohibited". Whenever a clear case still got a que
 
 ## Live demo
 
-<!-- LIVE_LINK -->
+**Try it: https://ai-act-risk-agent-v1-2-0.onrender.com** (free hosting: after a quiet spell the first load takes about a minute to wake up).
 
 The public demo keeps the bill bounded:
 
