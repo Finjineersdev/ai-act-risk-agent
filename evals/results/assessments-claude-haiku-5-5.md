@@ -1,10 +1,10 @@
 # Assessment eval · claude-haiku-5-5
 
-Run on 2026-11-24 · 30 golden cases ([golden.jsonl](../golden.jsonl))
+Run on 2026-11-24 · 30 cases ([golden.jsonl](../golden.jsonl))
 
 | Metric | Result |
 |---|---|
-| Correct tier, with the tier's deciding steps verified | 100% (30/30) |
+| Correct tier, accepted by the checker | 100% (30/30) |
 | Asked a question when the description was too vague | 100% (4/4) |
 | Didn't ask when the description was clear | 81% (21/26) |
 | Evidence quotes accepted (in the retrieved text, from the right provision) | 93.9% (353/376) |

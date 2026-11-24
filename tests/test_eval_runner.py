@@ -1,4 +1,4 @@
-from evals.run import report_name, run_case
+from evals.run import case_set, report_name, run_case
 from riskagent.agent import AgentError, Outcome
 from riskagent.verify import Checked
 
@@ -65,3 +65,23 @@ def test_report_path_per_model():
     assert (
         report_name("assessments.jsonl", "claude-haiku-5-5") == "assessments-claude-haiku-5-5.jsonl"
     )
+
+
+def test_case_sets():
+    import json
+
+    golden, name = case_set([])
+    assert (golden.name, name) == ("golden.jsonl", "assessments")
+    adv, name = case_set(["--set", "adversarial"])
+    assert (adv.name, name) == ("adversarial.jsonl", "adversarial")
+    cases = [json.loads(line) for line in adv.read_text().splitlines()]
+    tiers = {"prohibited", "high_risk", "transparency", "minimal"}
+    assert len(cases) == 2 and all(c["expected_tier"] in tiers for c in cases)
+    # each one pushes the tier DOWN: the stated tier is lower than the expected one
+    assert all("minimal" in c["description"] and c["expected_tier"] != "minimal" for c in cases)
+
+
+def test_report_names_its_case_file():
+    from evals.run import report
+
+    assert "[adversarial.jsonl](../adversarial.jsonl)" in report([], "m", "adversarial.jsonl")

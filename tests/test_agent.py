@@ -74,6 +74,7 @@ def test_request_shape(retriever):
     assert all(t["strict"] for t in kw["tools"])
     assert not {"temperature", "top_p", "top_k", "tool_choice"} & kw.keys()
     assert {t["name"] for t in kw["tools"]} == {"search_act", "ask_user", "submit_assessment"}
+    assert kw["cache_control"] == {"type": "ephemeral"}  # system + tools + history reused per call
 
 
 def test_search_then_submit_assessed(retriever):

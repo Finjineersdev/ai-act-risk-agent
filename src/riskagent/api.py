@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import logging
 import os
+import secrets
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import anthropic
 from actrag.api import CORPUS_DATE, DISCLAIMER
@@ -20,6 +24,7 @@ from actrag.demo import (
     is_spend_cap,
     visitor_key,
 )
+from actrag.web import harden
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, StringConstraints
@@ -27,14 +32,28 @@ from pydantic import BaseModel, Field, StringConstraints
 from riskagent import agent
 from riskagent.agent import AgentError, assess
 
+if TYPE_CHECKING:
+    from actrag.retrieve import Retriever
+
 log = logging.getLogger("riskagent")
+PER_IP_PER_HOUR = 5
+# Signs the follow-up questions the agent asks, so only those can come back as answered.
+# Random per process unless set; a restart only means an in-flight follow-up has to start over.
+SECRET = os.environ.get("FOLLOWUP_SECRET", "").encode() or secrets.token_bytes(32)
 STATIC = Path(__file__).parent / "static"
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
+
+
+def sign(description: str, question: str) -> str:
+    """Binds a follow-up question to the description it was asked about."""
+    msg = f"{description}\n{question}".encode()
+    return hmac.new(SECRET, msg, hashlib.sha256).hexdigest()
 
 
 class Answer(BaseModel):
     question: Text
     answer: Text
+    sig: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 
 
 class Assess(BaseModel):
@@ -44,11 +63,16 @@ class Assess(BaseModel):
     answers: list[Answer] = Field(default_factory=list, max_length=agent.MAX_QUESTIONS)
 
 
-def who(key: str | None) -> str:
+def key_owner(key: str | None) -> str:
+    """Whose key a failed call used, for the log line (never the key itself)."""
     return "visitor" if key else "owner"
 
 
-def create_app(retriever=None, llm=None, client_factory=anthropic.Anthropic) -> FastAPI:
+def create_app(
+    retriever: Retriever | None = None,
+    llm: anthropic.Anthropic | None = None,
+    client_factory: Callable[..., anthropic.Anthropic] = anthropic.Anthropic,
+) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         if retriever is None:
@@ -64,15 +88,21 @@ def create_app(retriever=None, llm=None, client_factory=anthropic.Anthropic) -> 
             app.state.llm = anthropic.Anthropic(max_retries=1 if demo_on() else 2)
         else:
             app.state.llm = None  # /health and the UI still work; /assess explains what's missing
-        app.state.limiter = Limiter()
+        app.state.limiter = Limiter(per_ip=PER_IP_PER_HOUR)
         app.state.key_limiter = Limiter(per_ip=30, total=10**6)
         yield
 
-    app = FastAPI(title="AI Act risk agent", lifespan=lifespan)
+    hidden = {"docs_url": None, "redoc_url": None, "openapi_url": None} if demo_on() else {}
+    app = FastAPI(title="AI Act risk agent", lifespan=lifespan, **hidden)
+    harden(app, STATIC / "index.html")
 
     @app.post("/assess")
     def assess_route(body: Assess, request: Request):
-        key = visitor_key(request)  # a visitor's own key: never logged, stored or echoed
+        for a in body.answers:  # checked first: a forged turn costs nothing and counts nothing
+            if not hmac.compare_digest(a.sig, sign(body.description, a.question)):
+                return JSONResponse({"error": "invalid_followup"}, status_code=400)
+        # a visitor's own key (demo only): never logged, stored or echoed
+        key = visitor_key(request) if demo_on() else None
         if key:
             # their key, their cost; a looser limit still stops junk keys from burning our CPU
             if request.app.state.key_limiter.check(client_ip(request)):
@@ -89,34 +119,44 @@ def create_app(retriever=None, llm=None, client_factory=anthropic.Anthropic) -> 
             llm, model = request.app.state.llm, DEMO_MODEL
         else:
             llm, model = request.app.state.llm, agent.MODEL
-        answers = [a.model_dump() for a in body.answers]
+        answers = [{"question": a.question, "answer": a.answer} for a in body.answers]
         try:
             o = assess(body.description, answers, request.app.state.retriever, llm, model=model)
+            out = {"status": o.status}
+            for field in ("assessment", "question", "missing"):
+                if getattr(o, field) is not None:
+                    out[field] = getattr(o, field)
+            if o.question is not None:
+                out["question_sig"] = sign(body.description, o.question)
+            if o.checked is not None:
+                out["problems"] = o.checked.problems
+            return out | {"model": model, "corpus_date": CORPUS_DATE, "disclaimer": DISCLAIMER}
         except AgentError as e:
             return JSONResponse({"error": e.code}, status_code=502)
         except anthropic.APIStatusError as e:
             # type and status only, so the owner can see why in the host's logs; never the key
-            log.warning("anthropic %s %s (%s key)", type(e).__name__, e.status_code, who(key))
+            log.warning("anthropic %s %s (%s key)", type(e).__name__, e.status_code, key_owner(key))
             # their key is wrong, can't run this, or is out of credit: retrying won't help
             if key and (e.status_code in (401, 402, 403) or is_spend_cap(e)):
                 return JSONResponse({"error": "bad_key"}, status_code=401)
             paused = not key and is_spend_cap(e)
             return JSONResponse({"error": "paused" if paused else "upstream"}, status_code=503)
         except anthropic.APIError as e:
-            log.warning("anthropic %s (%s key)", type(e).__name__, who(key))
+            log.warning("anthropic %s (%s key)", type(e).__name__, key_owner(key))
             return JSONResponse({"error": "upstream"}, status_code=503)
-        out = {"status": o.status}
-        for field in ("assessment", "question", "missing"):
-            if getattr(o, field) is not None:
-                out[field] = getattr(o, field)
-        if o.checked is not None:
-            out["problems"] = o.checked.problems
-        return out | {"model": model, "corpus_date": CORPUS_DATE, "disclaimer": DISCLAIMER}
+        finally:
+            if key:
+                llm.close()  # a client per visitor key; don't leave its connections open
 
     @app.get("/config")
     def config():
         demo = demo_on()
-        return {"demo": demo, "model": DEMO_MODEL if demo else agent.MODEL, "byok": demo}
+        return {
+            "demo": demo,
+            "model": DEMO_MODEL if demo else agent.MODEL,
+            "byok": demo,
+            "per_hour": PER_IP_PER_HOUR,
+        }
 
     @app.get("/examples")
     def examples():

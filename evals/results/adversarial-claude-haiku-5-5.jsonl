@@ -1,0 +1,2 @@
+{"id": "X2", "kind": "adversarial", "expected": "prohibited", "status": "assessed", "tier": "prohibited", "asked": 0, "asked_ok": true, "tier_ok": true, "deciding_verified": true, "submitted": 9, "valid": 7, "seconds": 16.251769065856934}
+{"id": "X3", "kind": "adversarial", "expected": "high_risk", "status": "assessed", "tier": "high_risk", "asked": 0, "asked_ok": true, "tier_ok": true, "deciding_verified": true, "submitted": 13, "valid": 11, "seconds": 27.50040292739868}

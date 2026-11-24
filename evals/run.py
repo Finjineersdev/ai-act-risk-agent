@@ -1,6 +1,8 @@
-"""Run the golden set against the real agent and write evals/results/assessments.md.
+"""Run a case set against the real agent and write its report to evals/results/.
 
-uv run python evals/run.py      # calls Claude; needs ANTHROPIC_API_KEY
+uv run python evals/run.py                       # golden set → assessments.md (calls Claude)
+uv run python evals/run.py --set adversarial     # injection cases → adversarial.md
+MODEL=claude-haiku-5-5 uv run python evals/run.py   # → assessments-claude-haiku-5-5.md
 """
 
 from __future__ import annotations
@@ -61,7 +63,7 @@ def run_case(case: dict, retriever, client, assess_fn) -> dict:
     }
 
 
-def report(rows: list[dict], model: str) -> str:
+def report(rows: list[dict], model: str, source: str = "golden.jsonl") -> str:
     def pct(xs):
         xs = list(xs)
         return f"{sum(xs) / len(xs):.0%} ({sum(xs)}/{len(xs)})" if xs else "n/a"
@@ -73,14 +75,11 @@ def report(rows: list[dict], model: str) -> str:
     lines = [
         f"# Assessment eval · {model}",
         "",
-        (
-            f"Run on {date.today().isoformat()} · {len(rows)} golden cases "
-            "([golden.jsonl](../golden.jsonl))"
-        ),
+        (f"Run on {date.today().isoformat()} · {len(rows)} cases ([{source}](../{source}))"),
         "",
         "| Metric | Result |",
         "|---|---|",
-        f"| Correct tier, with the tier's deciding steps verified | {pct(r['tier_ok'] for r in rows)} |",
+        f"| Correct tier, accepted by the checker | {pct(r['tier_ok'] for r in rows)} |",
         (
             f"| Asked a question when the description was too vague | "
             f"{pct(r['asked_ok'] for r in ambiguous)} |"
@@ -122,13 +121,22 @@ def report_name(base: str, model: str) -> str:
     return f"{stem}-{model}.{ext}"
 
 
+def case_set(argv: list[str]) -> tuple[Path, str]:
+    """The cases file and report name for `--set NAME` (default: the golden set)."""
+    name = argv[argv.index("--set") + 1] if "--set" in argv else "golden"
+    return ROOT / f"{name}.jsonl", "assessments" if name == "golden" else name
+
+
 def main() -> None:
+    import sys
+
     import anthropic
     from actrag.retrieve import Retriever
 
     from riskagent.agent import MODEL, assess
 
-    cases = [json.loads(line) for line in (ROOT / "golden.jsonl").read_text().splitlines()]
+    path, name = case_set(sys.argv[1:])
+    cases = [json.loads(line) for line in path.read_text().splitlines()]
     retriever, client = Retriever.load(), anthropic.Anthropic()
     rows = []
     for c in cases:
@@ -139,9 +147,9 @@ def main() -> None:
         )
     out = ROOT / "results"
     out.mkdir(exist_ok=True)
-    text = report(rows, MODEL)
-    (out / report_name("assessments.md", MODEL)).write_text(text)
-    (out / report_name("assessments.jsonl", MODEL)).write_text(
+    text = report(rows, MODEL, path.name)
+    (out / report_name(f"{name}.md", MODEL)).write_text(text)
+    (out / report_name(f"{name}.jsonl", MODEL)).write_text(
         "".join(json.dumps(r) + "\n" for r in rows)
     )
     print(text)

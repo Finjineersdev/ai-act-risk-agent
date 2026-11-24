@@ -25,7 +25,8 @@ def main() -> None:
     retriever, client, out = Retriever.load(), anthropic.Anthropic(), []
     for d in DESCRIPTIONS:
         o = assess(d, [], retriever, client, model=FULL_MODEL)
-        assert o.status == "assessed", (d, o.status, o.checked and o.checked.problems)
+        if o.status != "assessed":  # never save an unverified assessment
+            raise SystemExit(f"{d!r}: {o.status}; not saved")
         out.append(
             {
                 "description": d,

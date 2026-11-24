@@ -191,6 +191,8 @@ def assess(
             thinking={"type": "adaptive"},
             tools=tools(can_ask),
             messages=messages,
+            # each call resends the same system prompt, tools and growing history: cache them
+            cache_control={"type": "ephemeral"},
         )
         calls += 1
         if r.stop_reason == "max_tokens":

@@ -89,7 +89,7 @@ def test_step_without_valid_evidence_removed(by_id):
     bad = step("article_5", "applies", ev("art_5#6", "this text is not in the Act anywhere"))
     r = verify_assessment(assessment("prohibited", [bad]), by_id)
     assert r.assessment["steps"] == []
-    assert r.removed_steps == 1
+    assert r.removed == 1
     assert r.status == "unverified" and r.problems
 
 
@@ -103,7 +103,7 @@ def test_obligation_without_valid_evidence_removed(by_id):
     )
     r = verify_assessment(a, by_id)
     assert [o["text"] for o in r.assessment["obligations"]] == ["ok"]
-    assert r.removed_steps == 1
+    assert r.removed == 1
 
 
 def test_prohibited_needs_article_5():
@@ -176,7 +176,7 @@ def test_unknown_tier_is_a_problem():
 def test_counts(by_id):
     steps = NEG + [step("article_50", "applies", ev("art_50#0"), ev("art_50#0", "nope" * 10))]
     r = verify_assessment(assessment("transparency", steps), by_id)
-    assert (r.submitted, r.valid, r.removed_steps) == (4, 3, 0)
+    assert (r.submitted, r.valid, r.removed) == (4, 3, 0)
     assert r.status == "assessed"
 
 

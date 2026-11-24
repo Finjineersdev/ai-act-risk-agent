@@ -35,7 +35,7 @@ class Checked:
     assessment: dict
     submitted: int = 0
     valid: int = 0
-    removed_steps: int = 0
+    removed: int = 0  # steps and obligations dropped because their evidence failed
     problems: list[str] = field(default_factory=list)
 
 
@@ -114,6 +114,6 @@ def verify_assessment(a: dict, retrieved: dict[str, Chunk]) -> Checked:
         assessment={**a, "steps": steps, "obligations": obligations},
         submitted=submitted,
         valid=valid,
-        removed_steps=removed,
+        removed=removed,
         problems=problems,
     )

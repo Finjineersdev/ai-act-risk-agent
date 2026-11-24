@@ -114,7 +114,8 @@
     article_50: "Transparency (Article 50)", role: "Your role" };
   const OUTCOMES = { applies: "applies", does_not_apply: "does not apply", exempted: "exempted" };
   const TIERS = { prohibited: "Prohibited", high_risk: "High-risk", transparency: "Transparency duties", minimal: "Minimal risk" };
-  const ERRORS = { rate_limited: "You've reached this demo's hourly limit. Try the examples, or add your own Anthropic key above.",
+  const ERRORS = { invalid_followup: "This follow-up question has expired (the demo restarted). Please start a new check.",
+    rate_limited: "You've reached this demo's hourly limit. Try the examples, or add your own Anthropic key above.",
     busy: "The live demo is busy: its hourly limit across all visitors is used up. Try the examples, or add your own key above.",
     rate_limited_key: "You've reached this demo's hourly limit for requests with your own key. Try again later.",
     bad_key: "Anthropic didn't accept that key, or its account can't run requests. Check it and try again.",
@@ -186,7 +187,7 @@
     return card;
   }
 
-  function renderQuestion(q) {
+  function renderQuestion(q, sig) {
     const input = el("input", { id: "answer", maxLength: 1000, required: true, placeholder: "Your answer" });
     const form = el("form", { className: "card ask" },
       el("h2", { textContent: "One question first" }), el("p", { textContent: q }), asked(), input,
@@ -195,8 +196,8 @@
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       if (!input.value.trim()) return;
-      state.answers.push({ question: q, answer: input.value.trim() });
-      run(undefined, q);
+      state.answers.push({ question: q, answer: input.value.trim(), sig });
+      run(undefined, { q, sig });
     });
     setTimeout(() => input.focus(), 0);
     return form;
@@ -224,12 +225,12 @@
       view = el("p", { className: "card banner", textContent: ERRORS[d.error] || "Something went wrong. Try again." });
       if (followup) {  // keep the question and their answer so they can send it again
         const last = state.answers.pop();
-        const form = renderQuestion(followup);
+        const form = renderQuestion(followup.q, followup.sig);
         form.querySelector("input").value = last.answer;
         view = el("div", {}, view, form);
       }
     }
-    else if (d.status === "needs_info") view = renderQuestion(d.question);
+    else if (d.status === "needs_info") view = renderQuestion(d.question, d.question_sig);
     else if (d.status === "undetermined") view = el("article", { className: "card" },
       el("p", { className: "banner", textContent: "Can't classify this without knowing: " + d.missing.join("; ") + ". The agent won't guess a fact that decides the outcome." }), asked());
     else view = renderResult(d);
@@ -256,7 +257,9 @@
     demo = true;
     examples = await fetch("/examples").then((r) => r.json()).catch(() => []);
     $("demo-text").textContent = "Live demo: the examples show saved assessments from Claude Opus 5.5. "
-      + "Descriptions you type run on Claude Haiku 5.5, up to 5 per hour.";
+      + `Descriptions you type run on Claude Haiku 5.5, up to ${c.per_hour} per hour. `
+      + "What you type is sent to Anthropic to assess it. This site stores nothing, and logs your "
+      + "IP address only if you reach the hourly limit.";
     $("demo").style.display = "block";
   }).catch(() => {});
   fetch("/health").then((r) => r.json()).then((h) => { $("corpus").textContent = ` · Text version ${h.corpus_date}.`; }).catch(() => {});
